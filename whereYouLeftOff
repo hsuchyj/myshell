@@ -1,0 +1,12 @@
+last time:
+
+cd.sh works
+which() can find a file in /usr/bin since i did chown() on the folders
+
+next time:
+execute cd.sh
+change cd.sh to cd so when its called as "cd/usr/" it works
+
+for bash "which()" call c function which inside bash wrapper function
+
+then do fifth bullet point
