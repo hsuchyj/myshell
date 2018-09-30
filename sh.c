@@ -10,6 +10,7 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <errno.h>
+#include <sys/wait.h>
 #include "sh.h"
 
 int sh( int argc, char **argv, char **envp )
@@ -24,10 +25,9 @@ int sh( int argc, char **argv, char **envp )
   struct pathelement *pathlist;
 
   char cwd[256];
-  char* token;
   pid_t pid;
   int n;
-  char* argArr[25];//*******************************************************************NEED TO CHANGE TO **
+  char** argArr = malloc(sizeof(char**));//*******************************************************************NEED TO CHANGE TO **
   uid = getuid();
   password_entry = getpwuid(uid);               /* get passwd info */
   homedir = password_entry->pw_dir;		/* Home directory to start
@@ -45,46 +45,86 @@ int sh( int argc, char **argv, char **envp )
   /* Put PATH into a linked list */
   pathlist = get_path();
   //printf("%i",chdir("/home/hunter/Documents"));
-  chdir("/home/hunter/Documents");
+  //chdir("/home/hunter/Documents");
   //char* line;
-
-  while ( go )
+  char *prev;
+  signal(SIGINT, catchCtrlC);
+  sigignore(SIGSTP);
+  sigignore(SIGTERM);
+  while( go )
   {
     char* line = calloc(MAX_CANON, sizeof(char));
-    char* cmd = malloc(120);
+    char* cmd = malloc(128);
+    char*cwd = malloc(128);
     /* print your prompt */
     //printf("%s",getcwd(cwd, PATH_MAX+1));
     getcwd(cwd, PATH_MAX+1);
-    strcat(line, prompt);
-    strcat(line, "[");
-    strcat(line, cwd);
-    strcat(line, "]>");
+    sprintf(line,"%s[%s]>",prompt,cwd);
     printf("%s",line);
 
     /* get command line and process */
-    fgets(commandline, sizeof(commandline), stdin);
-    token = strtok(commandline, " ");
+    fgets(commandline, 128, stdin);
+    char* token = strtok(commandline, " ");
     int j = 0;
     while(token != NULL)
     {
-      argv[j] = token;
+      argArr[j] = token;
       token = strtok(NULL, " ");
       j++;
     }
-    command = argv[0];
-    //printf("this is my command %s",command);
-    command[strlen(command)-1] = '\0';
+    command = argArr[0];
+    //printf("this is argument 1 %s 2 %s\n", argArr[1],argArr[2]);
+    //command[strlen(command)-1] = '\0';
     /* check for each built in command and implement */
-    int built = 0;
+    char* built;
     char* builtins[] = {"exit", "which", "where", "cd","pwd", "list", "pid", "kill", "prompt", "printenv", "alias", "history", "setenv"};
     for(int i = 0; i < sizeof(builtins)/sizeof(builtins[0]); i++)
     {
       if(strcmp(builtins[i],command) == 0)
       {
-          built = 1;
+          built = builtins[i];
+          printf("Executing built in %s\n", built);
       }
     }
-    if(built ==1)
+    printf("%lu\n", strlen(built));
+    if(strcmp(built,"cd") == 0)
+    {
+      //printf("build is cd\n");
+      char first = argArr[1][0];
+      argArr[1][strlen(argArr[1])-1] = '\0';
+      //printf("%lu\n", strlen(argArr[1]));
+      if(first == '/')
+      {
+        prev = getcwd(prev, PATH_MAX+1);
+        //printf("change this dir\n");
+        //argArr[1][strlen(argArr[1])-1] = '\0';
+        //printf("length of str %lu",strlen(argArr[1]));
+        //printf("%i\n",chdir(argArr[1]));
+        chdir(argArr[1]);
+        //printf("%s\n",strerror(errno));
+      }
+      else if(strcmp(argArr[1],"-") == 0)
+      {
+        //printf("dash\n");
+        /*POSIX.1-2001: will malloc enough memory*/
+        /*fail if prev is NULL, do something*/
+        chdir(prev);
+        //free(prev);
+        //go to previous directoory
+      }
+      else
+      {
+        prev = getcwd(prev, PATH_MAX+1);
+        chdir("/home/");
+      }
+    }
+    else if(strcmp(built,"exit") == 0)
+    {
+      exit(0);
+    }
+    //JUST FOR COMMANDS NOT ON BUILT IN LIST cat, ls, etc.
+    //also has to use which()
+    if(built =="cheese")
     {
       sprintf(cmd, "/home/hunter/Downloads/proj_2/%s ",command);
       cmd[strlen(cmd)-1] = '\0';
@@ -97,12 +137,17 @@ int sh( int argc, char **argv, char **envp )
       }
       else if(pid > 0)
       {
-        printf("this is child %s this is pid %i\n",cmd, pid);
-        execve(cmd, argv, envp);
+        int status;
+        printf("this is parent %s this is pid %i\n",cmd, pid);
+        waitpid(pid,&status, 0);
       }
       else if (pid == 0)
       {
-        printf("this is parent %s this is pid %i\n",cmd, pid);
+        if(access(cmd, F_OK) == 0)
+        {
+          execve(cmd, argArr, envp);
+        }
+        printf("this is child %s this is pid %i\n",cmd, pid);
         //printf("Return not expected. Must be an execve error.n\n");
       }
       printf("%s\n",strerror(errno));
@@ -125,10 +170,36 @@ int sh( int argc, char **argv, char **envp )
       //  fprintf(stderr, "%s: Command not found.\n", args[0]);
   //}
   //free(cmd);
+  free(cwd);
   free(line);
   }
   return 0;
 } /* sh() */
+
+void catchCtrlC(int sig_num)
+{
+    signal(SIGINT, catchCtrlC);
+}
+
+void cd(char **argv)
+{
+  printf("This is an argument %s\n", argv[1]);
+  if(strcmp(argv[1],"") == 0)
+  {
+    printf("empty");
+    chdir("/home/");
+  }
+  else if(strcmp(argv[1],"-") == 0)
+  {
+    printf("dash");
+    //go to previous directoory
+  }
+  else
+  {
+    printf("change this dir\n");
+    chdir(argv[1]);
+  }
+}
 
 char *which(char *command, struct pathelement *pathlist )
 {
