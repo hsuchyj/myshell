@@ -1,18 +1,21 @@
 #include <unistd.h>
 #include <stdio.h>
-void cd(char* dir[])
+#include <string.h>
+#include <strings.h>
+
+int main(int argc, char **argv, char **envp)
 {
-  printf("This is an argument %s", dir[1]);
-  if(dir[1] == "")
+  printf("This is an argument");
+  if(strcmp(argv[1],"") == 0)
   {
     chdir("/home/");
   }
-  else if (dir[1] == "-")
+  else if (strcmp(argv[1],"-") == 0)
   {
     //go to previous directoory
   }
   else
   {
-    chdir(dir[1]);
+    chdir(argv[1]);
   }
 }

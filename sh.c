@@ -25,7 +25,9 @@ int sh( int argc, char **argv, char **envp )
 
   char cwd[256];
   char* token;
-  char* argArr[MAXARGS];//*******************************************************************NEED TO CHANGE TO **
+  pid_t pid;
+  int n;
+  char* argArr[25];//*******************************************************************NEED TO CHANGE TO **
   uid = getuid();
   password_entry = getpwuid(uid);               /* get passwd info */
   homedir = password_entry->pw_dir;		/* Home directory to start
@@ -45,10 +47,11 @@ int sh( int argc, char **argv, char **envp )
   //printf("%i",chdir("/home/hunter/Documents"));
   chdir("/home/hunter/Documents");
   //char* line;
+
   while ( go )
   {
     char* line = calloc(MAX_CANON, sizeof(char));
-    char* cmd = malloc(sizeof(char*));
+    char* cmd = malloc(128);
     /* print your prompt */
     //printf("%s",getcwd(cwd, PATH_MAX+1));
     getcwd(cwd, PATH_MAX+1);
@@ -64,34 +67,69 @@ int sh( int argc, char **argv, char **envp )
     int j = 0;
     while(token != NULL)
     {
-      argArr[j] = token;
+      argv[j] = token;
       token = strtok(NULL, " ");
       j++;
     }
     //args = strtok(commandline, " ");
     //printf("%s",argArr[0]);
-    command = argArr[0];
-    printf("%s",command);
+    command = argv[0];
+    //printf("this is my command %s \n",command);
     command[strlen(command)-1] = '\0';
     /* check for each built in command and implement */
+    int built = 0;
     char* builtins[] = {"exit", "which", "where", "cd","pwd", "list", "pid", "kill", "prompt", "printenv", "alias", "history", "setenv"};
     for(int i = 0; i < sizeof(builtins)/sizeof(builtins[0]); i++)
     {
-      printf("%lu %lu\n",strlen(builtins[i]), strlen(command));
       if(strcmp(builtins[i],command) == 0)
       {
-        strcpy(cmd, "/home/hunter/Downloads/proj_2/");
-        //command[strlen(command)-1] = '\0';
-        strcat(cmd, command);
-        strcat(cmd, ".o");
-        //printf("%s", cmd);
-        //printf("%i", access("/usr/bin/cd.sh", F_OK));
-        //cmd[strlen(cmd)-1] = '\0';
-        printf("%i \n",access(cmd, F_OK));
-        printf("%i \n", execve(cmd, argArr, NULL));
-        printf("%s",strerror(errno));
-
+          built = 1;
+          //command = builtins[i];
       }
+    }
+
+    if(built ==1)
+    {
+      //printf("%lu %lu\n",strlen(builtins[i]), strlen(command));
+    //if(strcmp(builtins[i],command) == 0)
+    //{
+      //printf("this is cmd 1 %s \n",cmd);
+      sprintf(cmd, "/home/hunter/Downloads/proj_2/%s ",command);
+      cmd[strlen(cmd)-1] = '\0';
+      //strcpy(cmd, "/home/hunter/Downloads/proj_2/");
+      //command[strlen(command)-1] = '\0';
+      //strcpy(cmd, "./");
+      //strcat(cmd, command);
+
+      //strcat(cmd, ".o");
+      //printf("this is length %lu \n", strlen(cmd));
+      //printf("%i", access("/usr/bin/cd.sh", F_OK));
+      //cmd[strlen(cmd)-1] = '\0';
+      //printf("%i \n",access(cmd, F_OK));
+      //printf("this is cmd 2 %s \n",cmd);
+      pid = fork();
+      if(pid ==-1)
+      {
+        perror("fork error");
+      }
+      else if(pid > 0)
+      {
+        printf("wtf %s", cmd);
+        execve(cmd, argv, envp);
+      }
+      else if (pid == 0)
+      {
+        //printf("hello\n");
+        //printf("this is parent %s this is pid %i\n",cmd, pid);
+        //execve(cmd, argv, envp);
+        //free(cmd);
+        //free(line);
+        printf("hello\n");
+        printf("Return not expected. Must be an execve error.n\n");
+      }
+      //printf("%i \n", execve(cmd, argArr, NULL));
+      printf("%s\n",strerror(errno));
+
     }
     /*
     if(which(command, pathlist)!= NULL)
@@ -108,11 +146,11 @@ int sh( int argc, char **argv, char **envp )
 
       //else
       //  fprintf(stderr, "%s: Command not found.\n", args[0]);
-    //}
-    free(cmd);
-    free(line);
-  }
+  //}
 
+  free(cmd);
+  free(line);
+  }
   return 0;
 } /* sh() */
 
