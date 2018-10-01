@@ -11,6 +11,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <sys/wait.h>
+#include <glob.h>
 #include "sh.h"
 
 int sh( int argc, char **argv, char **envp )
@@ -49,8 +50,8 @@ int sh( int argc, char **argv, char **envp )
   //char* line;
   char *prev;
   signal(SIGINT, catchCtrlC);
-  sigignore(SIGSTP);
-  sigignore(SIGTERM);
+  //sigignore(SIGSTOP);
+  //sigignore(SIGTERM);
   while( go )
   {
     char* line = calloc(MAX_CANON, sizeof(char));
@@ -63,20 +64,61 @@ int sh( int argc, char **argv, char **envp )
     printf("%s",line);
 
     /* get command line and process */
-    fgets(commandline, 128, stdin);
+    fgets(commandline, 200, stdin);
     char* token = strtok(commandline, " ");
-    int j = 0;
+    int k = 0;
+    int len;
     while(token != NULL)
     {
-      argArr[j] = token;
+      argArr[k] = token;
       token = strtok(NULL, " ");
-      j++;
+      k++;
     }
+    len = k;
     command = argArr[0];
-    //printf("this is argument 1 %s 2 %s\n", argArr[1],argArr[2]);
+    printf("this is argument 0 %s 1 %s k %i\n", argArr[0], argArr[1], k);
     //command[strlen(command)-1] = '\0';
+    //checking for wildcard *
+    int wildcard = 0;
+    char* wild;
+    //k is length of array or num of args
+    //printf("this is size %lu\n", (sizeof(argArr) / sizeof(argArr[0])));
+    for(int i = 0; i < k; i++)
+    {
+      printf("this is the stringer %s\n",argArr[i]);
+      for(int j = 0; j < sizeof(argArr[i])/sizeof(argArr[i][0]); j++)
+      {
+          if(argArr[i][j] == '*')
+          {
+            wildcard = 1;
+            wild = argArr[i];
+          }
+      }
+    }
+
+    if(wildcard == 1)
+    {
+      printf("this is the wild statement  %s", wild);
+      glob_t  paths;
+      int     csource;
+      char    **p;
+      wild[strlen(wild)-1] = '\0';
+      csource = glob(wild, 0, NULL, &paths);
+
+      if (csource == 0)
+      {
+        for (p = paths.gl_pathv; *p != NULL; ++p)
+        {
+          puts(*p);
+          printf("%s\n",*p);
+        }
+
+        globfree(&paths);
+      }
+    }
+
     /* check for each built in command and implement */
-    char* built;
+    char* built = "";
     char* builtins[] = {"exit", "which", "where", "cd","pwd", "list", "pid", "kill", "prompt", "printenv", "alias", "history", "setenv"};
     for(int i = 0; i < sizeof(builtins)/sizeof(builtins[0]); i++)
     {
@@ -86,7 +128,7 @@ int sh( int argc, char **argv, char **envp )
           printf("Executing built in %s\n", built);
       }
     }
-    printf("%lu\n", strlen(built));
+    //printf("%lu\n", strlen(built));
     if(strcmp(built,"cd") == 0)
     {
       //printf("build is cd\n");
@@ -96,21 +138,11 @@ int sh( int argc, char **argv, char **envp )
       if(first == '/')
       {
         prev = getcwd(prev, PATH_MAX+1);
-        //printf("change this dir\n");
-        //argArr[1][strlen(argArr[1])-1] = '\0';
-        //printf("length of str %lu",strlen(argArr[1]));
-        //printf("%i\n",chdir(argArr[1]));
         chdir(argArr[1]);
-        //printf("%s\n",strerror(errno));
       }
       else if(strcmp(argArr[1],"-") == 0)
       {
-        //printf("dash\n");
-        /*POSIX.1-2001: will malloc enough memory*/
-        /*fail if prev is NULL, do something*/
         chdir(prev);
-        //free(prev);
-        //go to previous directoory
       }
       else
       {
@@ -121,6 +153,42 @@ int sh( int argc, char **argv, char **envp )
     else if(strcmp(built,"exit") == 0)
     {
       exit(0);
+    }
+    else if(strcmp(built,"list") == 0)
+    {
+      char first = argArr[1][0];
+      if(first == '/')
+      {
+        DIR* d = malloc(sizeof(DIR*));
+        struct dirent *dp = malloc(sizeof(struct dirent*));
+        //for(int i = 1; i < sizeof(argArr); i++)
+        int i = 1;
+        while(argArr[i] != NULL)
+        {
+          argArr[i][strlen(argArr[i])-1] = '\0';
+          d = opendir(argArr[i]);
+          printf("\n");
+          printf("%s:\n", argArr[i]);
+          while ((dp=readdir(d)) != NULL)
+          {
+            printf("%s\n",dp->d_name);
+          }
+          closedir(d);
+          i++;
+          //free(dp);
+          //free(d);
+        }
+      }
+      else
+      {
+          DIR* d = opendir(cwd);
+          struct dirent *dp;
+          while ((dp=readdir(d)) != NULL)
+          {
+            printf("%s\n",dp->d_name);
+          }
+          free(d);
+      }
     }
     //JUST FOR COMMANDS NOT ON BUILT IN LIST cat, ls, etc.
     //also has to use which()
@@ -170,7 +238,7 @@ int sh( int argc, char **argv, char **envp )
       //  fprintf(stderr, "%s: Command not found.\n", args[0]);
   //}
   //free(cmd);
-  free(cwd);
+  //free(cwd);
   free(line);
   }
   return 0;
@@ -181,25 +249,6 @@ void catchCtrlC(int sig_num)
     signal(SIGINT, catchCtrlC);
 }
 
-void cd(char **argv)
-{
-  printf("This is an argument %s\n", argv[1]);
-  if(strcmp(argv[1],"") == 0)
-  {
-    printf("empty");
-    chdir("/home/");
-  }
-  else if(strcmp(argv[1],"-") == 0)
-  {
-    printf("dash");
-    //go to previous directoory
-  }
-  else
-  {
-    printf("change this dir\n");
-    chdir(argv[1]);
-  }
-}
 
 char *which(char *command, struct pathelement *pathlist )
 {
