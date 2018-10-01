@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <sys/wait.h>
 #include <glob.h>
+#include <ctype.h>
 #include "sh.h"
 
 int sh( int argc, char **argv, char **envp )
@@ -29,6 +30,9 @@ int sh( int argc, char **argv, char **envp )
   pid_t pid;
   int n;
   char** argArr = malloc(sizeof(char**));//*******************************************************************NEED TO CHANGE TO **
+  int histLength = 25;
+  char** history[25];
+  int histIndex = 0;
   uid = getuid();
   password_entry = getpwuid(uid);               /* get passwd info */
   homedir = password_entry->pw_dir;		/* Home directory to start
@@ -76,7 +80,17 @@ int sh( int argc, char **argv, char **envp )
     }
     len = k;
     command = argArr[0];
-    printf("this is argument 0 %s 1 %s k %i\n", argArr[0], argArr[1], k);
+    if(histIndex == histLength)
+    {
+      histIndex = 0;
+    }
+    else
+    {
+      history[histIndex] = command;
+      histIndex++;
+    }
+
+    printf("this is argument 0 %s 1 %s len %lu\n", argArr[0], argArr[1], strlen(argArr[1]));
     //command[strlen(command)-1] = '\0';
     //checking for wildcard *
     int wildcard = 0;
@@ -154,6 +168,10 @@ int sh( int argc, char **argv, char **envp )
     {
       exit(0);
     }
+    else if(strcmp(built,"history")==0)
+    {
+
+    }
     else if(strcmp(built,"list") == 0)
     {
       char first = argArr[1][0];
@@ -190,6 +208,46 @@ int sh( int argc, char **argv, char **envp )
           free(d);
       }
     }
+    else if (strcmp(built,"printenv") == 0)
+    {
+      if(argArr[2] != NULL)
+      {
+        printf("Too many args\n");
+      }
+      else if(isspace(argArr[1][0]) > 0)
+      {
+        for(int i = 0; i < sizeof(envp)/sizeof(envp[0]);i++)
+        {
+          printf("%s\n", envp[i]);
+        }
+      }
+      else
+      {
+        char* env = getenv(argArr[1]);
+        printf("%s\n",env);
+        //printf("%s\n",getenv(argArr[1]));
+      }
+    }
+    /*
+    else if (strcmp(built,"setenv") == 0)
+    {
+      if(argArr[3] != NULL)
+      {
+        printf("Too many args\n");
+      }
+      else if(isspace(argArr[1][0]) > 0)
+      {
+        for(int i = 0; i < sizeof(envp)/sizeof(envp[0]);i++)
+        {
+          printf("%s\n", envp[i]);
+        }
+      }
+      else
+      {
+        printf("%s\n",getenv(argArr[1]));
+      }
+    }
+    */
     //JUST FOR COMMANDS NOT ON BUILT IN LIST cat, ls, etc.
     //also has to use which()
     if(built =="cheese")
@@ -311,10 +369,26 @@ char *which(char *command, struct pathelement *pathlist )
 } /* which() */
 
 
-char *where(char *command, struct pathelement *pathlist )
+void *where(char *command, struct pathelement *pathlist )
 {
   /* similarly loop through finding all locations of command */
+  char* cmd = malloc(sizeof(char*));
+  char* commandVal = NULL;
+  while (pathlist)
+  {
+    strcpy(cmd, pathlist->element);
+    strcat(cmd, "/");
+    strcat(cmd, command);
+    cmd[strlen(cmd)-1] = '\0';
+    if(access(cmd, F_OK) == 0)
+    {
+       printf("%s\n"cmd);
+    }
+    pathlist = pathlist->next;
+  }
+
 } /* where() */
+
 
 void list ( char *dir )
 {
