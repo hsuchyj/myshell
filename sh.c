@@ -42,6 +42,7 @@ int sh( int argc, char **argv, char **envp )
     history[i] = '\0';
   }
   char* prefix = malloc(sizeof(char*));
+  char* prefix2= malloc(sizeof(char*));
   int histIndex = 0;
   int numCommands = 0;
 
@@ -67,6 +68,9 @@ int sh( int argc, char **argv, char **envp )
   //char* line;
   char *prev;
   signal(SIGINT, catchCtrlC);
+  signal(SIGSTOP, catchCtrlC);
+  signal(SIGTSTP, catchCtrlC);
+  signal(SIGTERM, catchCtrlC);
   //sigignore(SIGSTOP);
   //sigignore(SIGTERM);
   char* line = calloc(MAX_CANON, sizeof(char));
@@ -113,7 +117,7 @@ int sh( int argc, char **argv, char **envp )
     if(command != NULL)
     {
     //printf("this is before %s ind %i\n", history[0], histIndex);
-    history[histIndex] = &command;
+    history[histIndex] = command;
     //printf("this is after %s\n", history[0]);
     //printf("this is hist %s\n", history[histIndex]);
     numCommands++;
@@ -138,7 +142,7 @@ int sh( int argc, char **argv, char **envp )
           }
       }
     }
-
+    //check for wild
     if(wildcard == 1)
     {
       printf("this is the wild statement  %s", wild);
@@ -243,7 +247,11 @@ int sh( int argc, char **argv, char **envp )
       //printf("build is cd\n");
       //argArr[1][strlen(argArr[1])-1] = '\0';
       //printf("%lu\n", strlen(argArr[1]));
-      if(argArr[1] != NULL)
+      if(len > 2)
+      {
+          printf("too many args\n");
+      }
+      else if(argArr[1] != NULL)
       {
         char first = argArr[1][0];
       if(first == '/')
@@ -295,6 +303,18 @@ int sh( int argc, char **argv, char **envp )
 
       }
     }
+    else if(strcmp(built,"kill") == 0)
+    {
+      if(!isspace(argArr[2]))
+      {
+          kill(atoi(argArr[1]), atoi(argArr[2]));
+      }
+      else
+      {
+        kill(atoi(argArr[1]), SIGTERM);
+      }
+
+    }
     else if(strcmp(built,"list") == 0)
     {
       char first = argArr[1][0];
@@ -337,41 +357,68 @@ int sh( int argc, char **argv, char **envp )
     }
     else if (strcmp(built,"printenv") == 0)
     {
-      if(argArr[2] != NULL)
+      if(len > 2)
       {
         printf("Too many args\n");
       }
-      else if(isspace(argArr[1][0]) > 0)
+      else if(argArr[1] != NULL)
       {
-        for(int i = 0; i < sizeof(envp)/sizeof(envp[0]);i++)
+        char* env = malloc(sizeof(char*));
+        env = getenv(argArr[1]);
+        if(env != NULL)
+          printf("%s\n",env);
+        else
         {
-          printf("%s\n", envp[i]);
+          printf("env var not found\n");
         }
+        free(env);
       }
       else
       {
-        char* env = getenv(argArr[1]);
-        printf("%s\n",env);
+        int i = 0;
+        while(envp[i] != NULL)
+        {
+          printf("%s\n", envp[i]);
+          i++;
+        }
         //printf("%s\n",getenv(argArr[1]));
       }
     }
     else if (strcmp(built,"prompt") == 0)
     {
-      if(isspace(argArr[1][0]) > 0)
+
+      if(argArr[1] == NULL)
       {
         printf("input prompt prefix: ");
-        fgets(prefix, 200, stdin);
+        fgets(prefix2, sizeof(char*), stdin);
+        prefix = prefix2;
         prefix[strlen(prefix)-1] = '\0';
       }
       else
       {
-        prefix = argArr[1];
-        prefix[strlen(prefix)-1] = '\0';
+        prefix2 = argArr[1];
+        prefix = prefix2;
+        //prefix[strlen(prefix)-1] = '\0';
       }
     }
     else if (strcmp(built,"pwd") == 0)
     {
       printf("%s\n",cwd);
+    }
+    else if (strcmp(built,"setenv") == 0)
+    {
+      if(len > 3)
+      {
+        printf("Too many args\n");
+      }
+      else if(argArr[2] != NULL)
+      {
+        printf("you set the env var %s to the value %s\n",argArr[1],argArr[2]);
+      }
+      else if(argArr[1] != NULL)
+      {
+        printf("%s has been set as an env var\n",argArr[1]);
+      }
     }
     else if(strcmp(built,"where") == 0)
     {
@@ -396,65 +443,10 @@ int sh( int argc, char **argv, char **envp )
       }
     }
     histIndex++;
-    /*
-    else if (strcmp(built,"setenv") == 0)
-    {
-      if(argArr[3] != NULL)
-      {
-        printf("Too many args\n");
-      }
-      else if(isspace(argArr[1][0]) > 0)
-      {
-        for(int i = 0; i < sizeof(envp)/sizeof(envp[0]);i++)
-        {
-          printf("%s\n", envp[i]);
-        }
-      }
-      else
-      {
-        printf("%s\n",getenv(argArr[1]));
-      }
-    }
-    */
+
     //JUST FOR COMMANDS NOT ON BUILT IN LIST cat, ls, etc.
     //also has to use which()
-    if(built =="cheese")
-    {
-      sprintf(cmd, "/home/hunter/Downloads/proj_2/%s ",command);
-      cmd[strlen(cmd)-1] = '\0';
-      printf("this is length %lu \n", strlen(cmd));
-      printf("this is cmd 2 %s \n",cmd);
-      pid = fork();
-      if(pid ==-1)
-      {
-        perror("fork error");
-      }
-      else if(pid > 0)
-      {
-        int status;
-        printf("this is parent %s this is pid %i\n",cmd, pid);
-        waitpid(pid,&status, 0);
-      }
-      else if (pid == 0)
-      {
-        if(access(cmd, F_OK) == 0)
-        {
-          execve(cmd, argArr, envp);
-        }
-        printf("this is child %s this is pid %i\n",cmd, pid);
-        //printf("Return not expected. Must be an execve error.n\n");
-      }
-      printf("%s\n",strerror(errno));
 
-      //free(cmd);
-      //free(cwd);
-      //free(line);
-      //free(argArr);
-      for (i = 0; i < 10; ++i)
-      {
-        free(argArr[i]);
-      }
-    }
     /*
     if(which(command, pathlist)!= NULL)
     {
@@ -568,10 +560,3 @@ void *where(char *command, struct pathelement *pathlist )
   }
 
 } /* where() */
-
-
-void list ( char *dir )
-{
-  /* see man page for opendir() and readdir() and print out filenames for
-  the directory passed */
-} /* list() */
