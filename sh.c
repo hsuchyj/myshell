@@ -13,8 +13,15 @@
 #include <sys/wait.h>
 #include <glob.h>
 #include <ctype.h>
+#include <pthread.h>
+#include <utmpx.h>
 #include "sh.h"
+#include "ll.h"
 
+
+//global linked list
+node head = NULL;
+node tail = malloc(sizeof(node));
 int sh( int argc, char **argv, char **envp )
 {
   char *prompt = calloc(PROMPTMAX, sizeof(char));
@@ -29,6 +36,9 @@ int sh( int argc, char **argv, char **envp )
   char cwd[256];
   pid_t pid;
   int n;
+  pthread_t watchUser;
+  int watched = 0;
+
   //char* argArr1[];
 
   int histLength = 25;
@@ -112,7 +122,7 @@ int sh( int argc, char **argv, char **envp )
       //token = strtok(NULL, " ");
     }
     len = k;
-    printf("this is len %i\n", len);
+    //printf("this is len %i\n", len);
     command = argArr[0];
     if(command != NULL)
     {
@@ -145,7 +155,7 @@ int sh( int argc, char **argv, char **envp )
     //check for wild
     if(wildcard == 1)
     {
-      printf("this is the wild statement  %s", wild);
+      //printf("this is the wild statement  %s", wild);
       glob_t  paths;
       int     csource;
       char    **p;
@@ -167,7 +177,7 @@ int sh( int argc, char **argv, char **envp )
 
     /* check for each built in command and implement */
     char* built = "";
-    char* builtins[] = {"exit", "which", "where", "cd","pwd", "list", "pid", "kill", "prompt", "printenv", "alias", "history", "setenv"};
+    char* builtins[] = {"exit", "which", "where", "cd","pwd", "list", "pid", "kill", "prompt", "printenv", "alias", "history", "setenv","watchuser"};
     for(int i = 0; i < sizeof(builtins)/sizeof(builtins[0]); i++)
     {
       if(strcmp(builtins[i],command) == 0)
@@ -178,7 +188,31 @@ int sh( int argc, char **argv, char **envp )
       }
     }
     //absolute paths
-    if(checkBuilt == 0)
+      printf("%i\n",argArr[len-1] == "&");
+    if(strcmp(argArr[len-1],"&") == 0)
+    {
+      printf("has a ampersand\n");
+      char* whichExe = malloc(sizeof(char*));
+      pthread_t thread1;
+      int ret = 0;
+      if(which(command, pathlist)!= NULL)
+      {
+        if(access(which(command, pathlist),F_OK) == 0)
+        {
+          whichExe = which(command, pathlist);
+        }
+        else
+        {
+          printf("does not exit\n");
+        }
+      }
+      //pthread_create(&thread1, NULL, (void*) externalCommand(whichExe), NULL);
+      strcat(whichExe, " &");
+      whichExe[strlen(whichExe)-1] = '\0';
+      system(whichExe);
+
+    }
+    else if(checkBuilt == 0)
     {
       char* whichExe = malloc(sizeof(char*));
       char first = argArr[0][0];
@@ -190,16 +224,18 @@ int sh( int argc, char **argv, char **envp )
         //printf("this is len %lu\n", strlen(argArr[0]));
         //printf("%s\n",strerror(errno));
 
+
         if(first == '/' || first == '.')
         {
           //execve(argArr[0], argArr,  envp);
           whichExe = argArr[0];
         }
+        //background processes
         else
         {
           if(which(command, pathlist)!= NULL)
           {
-            printf("which is working %s\n",which(command, pathlist));
+            //printf("which is working %s\n",which(command, pathlist));
             //execve(which(command, pathlist), argArr,  envp);
             //for ls
             if(access(which(command, pathlist),F_OK) == 0)
@@ -225,12 +261,12 @@ int sh( int argc, char **argv, char **envp )
           else if(pid > 0)
           {
             int status;
-            printf("this is parent this is pid %i\n", pid);
+            //printf("this is parent this is pid %i\n", pid);
             waitpid(pid,&status, 0);
           }
           else if (pid == 0)
           {
-            printf("this is child this is pid %i\n", pid);
+            //printf("this is child this is pid %i\n", pid);
             //absolute path or ls
             execve(whichExe, argArr,  envp);
           }
@@ -280,7 +316,7 @@ int sh( int argc, char **argv, char **envp )
       if(numCommands < 10)
       {
         num = numCommands;
-        printf("shrink num %i\n", num);
+        //printf("shrink num %i\n", num);
       }
       if(argArr[1] != NULL)
       {
@@ -293,11 +329,11 @@ int sh( int argc, char **argv, char **envp )
       int tempInd = histIndex;
       for(int i = 0; i < len; i++)
       {
-        printf("name uno %s\n", history[i]);
+        printf("%s\n", history[i]);
       }
       while(i < num)
       {
-        printf("name %s\n", history[tempInd]);
+        //printf("name %s\n", history[tempInd]);
         tempInd--;
         i++;
 
@@ -305,15 +341,8 @@ int sh( int argc, char **argv, char **envp )
     }
     else if(strcmp(built,"kill") == 0)
     {
-      if(!isspace(argArr[2]))
-      {
-          kill(atoi(argArr[1]), atoi(argArr[2]));
-      }
-      else
-      {
-        kill(atoi(argArr[1]), SIGTERM);
-      }
-
+        printf("killing process\n");
+        kill( getpid(), SIGTERM);
     }
     else if(strcmp(built,"list") == 0)
     {
@@ -350,6 +379,10 @@ int sh( int argc, char **argv, char **envp )
           }
           free(d);
       }
+    }
+    else if(strcmp(built,"alias") == 0)
+    {
+      printf("alias table\n");
     }
     else if (strcmp(built,"pid") == 0)
     {
@@ -429,12 +462,12 @@ int sh( int argc, char **argv, char **envp )
       //printf("%s\n" , argArr[2]);
       for(int i = 1; i < len; i++)
       {
-        printf("suze iz %i\n", len);
+        //printf("suze iz %i\n", len);
         if(argArr[i] != NULL)
         {
-          printf("dis length %lu\n", strlen(argArr[i]));
+          //printf("dis length %lu\n", strlen(argArr[i]));
           //argArr[i][strlen(argArr[i]) - 1] = '\0';
-          printf("jes %s\n",argArr[i]);
+          //printf("jes %s\n",argArr[i]);
           char* args = malloc(500);
           args = which(argArr[i],pathlist);
           printf("%s\n", args);
@@ -442,30 +475,32 @@ int sh( int argc, char **argv, char **envp )
         }
       }
     }
+    else if (strcmp(built,"watchuser") == 0)
+    {
+      node newNode = malloc(sizeof(node));
+      newNode->username = argArr[1];
+      if(head==NULL)
+		  {
+			printf("head is null\n");
+			head = malloc(sizeof(node));
+			head = newNode;
+			head->next = NULL;
+			head->prev = NULL;
+			tail = newNode;
+		}
+		else
+		{
+			tail = addNode(tail, newNode);
+			last->next = NULL;
+		}
+      if(watched == 0)
+      {
+        create_watchthread();
+        watched = 1;
+      }
+    }
     histIndex++;
 
-    //JUST FOR COMMANDS NOT ON BUILT IN LIST cat, ls, etc.
-    //also has to use which()
-
-    /*
-    if(which(command, pathlist)!= NULL)
-    {
-      printf("%s",which(command, pathlist));
-    }
-
-    printf("%s",command);
-    */
-     /*  else  program to exec */
-    //{
-       /* find it */
-       /* do fork(), execve() and waitpid() */
-
-      //else
-      //  fprintf(stderr, "%s: Command not found.\n", args[0]);
-  //}
-  //free(cmd);
-  //free(cwd);
-  //free(line);
     }
   }
   return 0;
@@ -476,6 +511,60 @@ void catchCtrlC(int sig_num)
     signal(SIGINT, catchCtrlC);
 }
 
+//change all variable and function names
+//get linked list code from first lab and create linked list of usernames
+//my linked list instead of userlist
+int watchuser_switch = 0;
+
+node addNode(node last, node node1)
+{
+	node temp = malloc(sizeof(node));
+	temp = last;
+	temp->next =  malloc(sizeof(node));
+	temp->next = node1;
+	node1->prev = temp;
+	//free(temp);
+	return node1;
+}
+
+void create_watchthread() {
+  pthread_t watchuser_pid;
+  pthread_create(&watchuser_pid, NULL, watchuser_thread, "watchuser thread");
+}
+
+/*checks all of the users logged on*/
+static void *watchuser_thread(void *param) {
+  while(1) {
+    userlist_check(head);
+    sleep(20);
+  }
+}
+
+void userlist_check(struct command_node *head) {
+  struct command_node *curr = head;
+  while(curr!=NULL)
+  {
+    checkuser_loggedin(curr->username);
+    curr=curr->next;
+  }
+}
+
+int checkuser_loggedin(char *username)
+{
+  struct utmpx *up;
+
+  setutxent();			/* start at beginning */
+  while (up = getutxent() )	/* get an entry */
+  {
+    if ( up->ut_type == USER_PROCESS )	/* only care about users */
+    {
+      if(strcmp(up->ut_user, username)==0) { /*check if user being watched matches*/
+          printf("%s has logged on %s from %s \n", up->ut_user, up->ut_line, up ->ut_host);
+      }
+    }
+  }
+  return 0;
+}
 
 char *which(char *command, struct pathelement *pathlist )
 {
@@ -488,57 +577,18 @@ char *which(char *command, struct pathelement *pathlist )
    {
      strcpy(cmd, pathlist->element);
      strcat(cmd, "/");
-     //command[strlen(command)-1] = '\0';
      strcat(cmd, command);
-     //printf("%s\n", cmd);
-     //printf("%i", access("/usr/bin/cd.sh", F_OK));
-     //cmd[strlen(cmd)-1] = '\0';
-     //printf("\n");
-     //printf("%lu\n", strlen(cmd));
-     //printf("\n");
-     //printf("%lu", strlen("/usr/bin/cd.sh"));
-     //printf("\n");
-     //access(cmd, F_OK);
-     //struct stat s;
-     /*
-     if(strcmp(cmd, "/usr/bin/cd.sh") == 0)
-     {
-       //printf("found it");
-     }
-     */
      if(access(cmd, F_OK) == 0)
      {
-        printf("%i\n",access(cmd, F_OK));
+        //printf("%i\n",access(cmd, F_OK));
         commandVal = cmd;
         break;
       }
      pathlist = pathlist->next;
    }
+   return commandVal;
+}
 
-   //return commandVal;
-   /*
-   char* commandVal = NULL;
-   struct pathelement* temp = pathlist->next;
-   while(temp != NULL)
-   {
-    char* testStr = malloc(sizeof(char*));
-     //printf("%s",temp->element);
-     strcat(testStr,temp->element);
-     strcat(testStr,"/");
-     strcat(testStr, command);
-     if(access(testStr, F_OK) == 0)
-     {
-       commandVal = command;
-     }
-     temp = temp->next;
-     free(testStr);
-   }
-   return commandVal;
-   */
-   return commandVal;
-   //free(cmd);
-   //free(commandVal);
-} /* which() */
 
 
 void *where(char *command, struct pathelement *pathlist )
@@ -560,3 +610,8 @@ void *where(char *command, struct pathelement *pathlist )
   }
 
 } /* where() */
+
+void* externalCommand(char* name)
+{
+  system(name);
+}

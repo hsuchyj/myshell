@@ -9,6 +9,8 @@ void list ( char *dir );
 void printenv(char **envp);
 void cd(char**arr);
 void catchCtrlC(int sig_num);
+void* externalCommand(char* name);
+void* watchUsers();
 
 #define PROMPTMAX 32
 #define MAXARGS 10

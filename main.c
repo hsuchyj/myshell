@@ -7,6 +7,7 @@ void sig_handler(int signal);
 int main( int argc, char **argv, char **envp )
 {
   /* put signal set up stuff here */
+  
   return sh(argc, argv, envp);
 }
 
