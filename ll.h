@@ -4,7 +4,7 @@
 struct linkl
 {
 	char* username;
-  int watch = 1;
+  int watch;
 	struct linkl* next;
 	struct linkl* prev;
 };

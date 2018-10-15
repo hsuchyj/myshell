@@ -21,9 +21,10 @@
 
 //global linked list
 node head = NULL;
-node tail = malloc(sizeof(node));
+node tail;
 int sh( int argc, char **argv, char **envp )
 {
+  tail = malloc(sizeof(node));
   char *prompt = calloc(PROMPTMAX, sizeof(char));
   char *commandline = calloc(MAX_CANON, sizeof(char));
   char *command, *arg, *commandpath, *p, *pwd, *owd;
@@ -479,6 +480,7 @@ int sh( int argc, char **argv, char **envp )
     {
       node newNode = malloc(sizeof(node));
       newNode->username = argArr[1];
+      newNode->watch = 1;
       if(head==NULL)
 		  {
 			printf("head is null\n");
@@ -488,10 +490,14 @@ int sh( int argc, char **argv, char **envp )
 			head->prev = NULL;
 			tail = newNode;
 		}
+    else if(strcmp(argArr[2],"off") == 0)
+    {
+      turnOffWatch(argArr[1], head);
+    }
 		else
 		{
 			tail = addNode(tail, newNode);
-			last->next = NULL;
+			tail->next = NULL;
 		}
       if(watched == 0)
       {
@@ -511,7 +517,7 @@ void catchCtrlC(int sig_num)
     signal(SIGINT, catchCtrlC);
 }
 
-//change all variable and function names
+//change all variable and function
 //get linked list code from first lab and create linked list of usernames
 //my linked list instead of userlist
 int watchuser_switch = 0;
@@ -540,8 +546,9 @@ static void *watchuser_thread(void *param) {
   }
 }
 
-void userlist_check(struct command_node *head) {
-  struct command_node *curr = head;
+void userlist_check(node head)
+{
+  node curr = head;
   while(curr!=NULL)
   {
     checkuser_loggedin(curr->username);
@@ -589,6 +596,23 @@ char *which(char *command, struct pathelement *pathlist )
    return commandVal;
 }
 
+void turnOffWatch(char* username, node first)
+{
+	node temp = first;
+	node temp2 = malloc(sizeof(node));
+	while(temp != NULL)
+	{
+		if(temp->username == username)
+		{
+				temp2 = temp->next;
+				temp->prev->next = temp2;
+				temp2->prev = temp->prev;
+				//free(temp);
+		}
+
+		temp = temp->next;
+	}
+}
 
 
 void *where(char *command, struct pathelement *pathlist )
